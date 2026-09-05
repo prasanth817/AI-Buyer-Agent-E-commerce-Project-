@@ -19,7 +19,7 @@ The system can then:
 * Send payment notifications through Telegram
 * Maintain an audit log of all commerce events
 
- 🏗️ Architecture
+ # Architecture
 Customer
    │
    ▼
