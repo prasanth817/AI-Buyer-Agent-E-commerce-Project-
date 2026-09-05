@@ -1,4 +1,4 @@
-# AI-Buyer-Agent-commerce-Project
+# AI-Buyer-Agent-Merchant-Project
 An AI-powered buyer agent for conversational e-commerce that understands customer intent, searches products, recommends relevant products, manages checkout, processes payments, and sends payment-status notifications.
 
 ## Overview
