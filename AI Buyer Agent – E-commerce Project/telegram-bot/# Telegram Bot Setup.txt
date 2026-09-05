@@ -1,0 +1,11 @@
+# Telegram Bot Setup
+
+The Telegram bot provides the conversational interface for the Track01 AI Buyer Agent.
+
+## Setup
+
+1. Create a Telegram bot using BotFather.
+2. Obtain the bot token.
+3. Configure the token in the n8n Telegram credentials.
+4. Activate the AI Buyer Agent workflow.
+5. Send a message to the bot to start the conversation.

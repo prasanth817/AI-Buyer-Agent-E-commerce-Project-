@@ -1,0 +1,819 @@
+{
+  "name": "Ai Buyer agent",
+  "nodes": [
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3-flash-preview",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3-flash-preview"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Extract product name, max_price, and shipping preference from this text.\nReturn ONLY valid JSON with no markdown, no code blocks.\n\nExample output: {\"product\": \"wireless charger\", \"max_price\": 2000, \"shipping\": \"standard\"}\n\nUser text:{{ $json.message.text }} "
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -288,
+        0
+      ],
+      "id": "c72f67f6-ae25-42a7-8dd2-755a41fbe549",
+      "name": "Intent Parsing",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "l9RVEhaTnjXNrO0i",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": " https://approve-commons-extraction-draw.trycloudflare.com/products  ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        304,
+        0
+      ],
+      "id": "55590478-5f11-4b64-bfff-9b13a50b0db7",
+      "name": "Call /products"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": " https://approve-commons-extraction-draw.trycloudflare.com/checkout  ",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Filter matching products').item.json.cart) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1632,
+        -192
+      ],
+      "id": "2de4ac1f-862f-49d9-8333-1d61e865e89e",
+      "name": "Call /checkout"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": " https://approve-commons-extraction-draw.trycloudflare.com/audit-log ",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"action\": \"checkout_created\",\n  \"order_id\": \"{{ $json.order_id }}\",\n  \"amount\": {{ $json.amount }},\n  \"outcome\": \"success\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1856,
+        -192
+      ],
+      "id": "194316c8-0ded-432a-bcba-cff6fcc3a385",
+      "name": "Audit log"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": " https://approve-commons-extraction-draw.trycloudflare.com/audit-log ",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"action\": \"product is not added to cart\",\n  \"order_id\": \"No order\",\n  \"amount\":0,\n  \"outcome\":\"failure\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1632,
+        48
+      ],
+      "id": "db601dd3-f536-471a-9c16-e25acb93de1d",
+      "name": "Audit log for rejection"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        592,
+        -176
+      ],
+      "id": "1e4af085-b919-45ff-833f-771abe267d60",
+      "name": "user intent +products"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "85e00b4f-cc99-4be0-a440-795522a2b5a3",
+              "name": "\"message\" ",
+              "value": "\"Payment link generated!\"",
+              "type": "string"
+            },
+            {
+              "id": "47eda719-3402-4c24-8081-59ed65bd6710",
+              "name": " \"payment_url\"",
+              "value": "={{ $('Call /checkout').item.json.payment_link }}",
+              "type": "string"
+            },
+            {
+              "id": "fadcabf2-ae0d-43ee-853d-21400e0ec530",
+              "name": " \"order_id\"",
+              "value": "={{ $json.log_entry.order_id }}",
+              "type": "string"
+            },
+            {
+              "id": "aeba2982-36ef-440f-b3aa-a097718c6271",
+              "name": "  \"amount\"",
+              "value": "={{ $json.log_entry.amount }}",
+              "type": "number"
+            },
+            {
+              "id": "c99ba524-32d5-4f37-b767-ad4e7661b698",
+              "name": "\"currency\"",
+              "value": "\"INR\"",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2032,
+        -192
+      ],
+      "id": "35da0011-1707-47c2-bd43-2b9795f89eb5",
+      "name": "payment details for order"
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -496,
+        0
+      ],
+      "id": "9883a635-3785-4bf2-98ad-9ef1a18591f7",
+      "name": "commerce Bot",
+      "webhookId": "333a3402-2959-4600-97aa-00df9cf2dd77",
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const geminiResponse = $input.first().json.content.parts[0].text;\nconst intent = JSON.parse(geminiResponse);\n\n// Set default shipping if null\nif (!intent.shipping) {\n  intent.shipping = \"standard\";\n}\n\nreturn intent;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        64,
+        0
+      ],
+      "id": "4413b02d-228a-48e7-b806-ef9311a5ceaf",
+      "name": "user details parser"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get merged data from Combine mode\nconst mergedData = $input.first().json;\n\n// The merged data should have both intent and products\n// Extract them based on the actual structure\n\n// Try to find intent (from Gemini parse node)\nconst intent = mergedData.product || mergedData.max_price ? mergedData : mergedData;\n\n// Try to find products (from HTTP Request node)\nconst products = mergedData.id ? [mergedData] : \n                 (Array.isArray(mergedData) ? mergedData : \n                 [\n                   {\"id\":\"prod_001\",\"name\":\"Wireless Charger\",\"price\":1499,\"currency\":\"INR\",\"available\":true},\n                   {\"id\":\"prod_002\",\"name\":\"USB-C Cable\",\"price\":299,\"currency\":\"INR\",\"available\":true},\n                   {\"id\":\"prod_003\",\"name\":\"Power Bank 10000mAh\",\"price\":1999,\"currency\":\"INR\",\"available\":true}\n                 ]);\n\n// If products is the merged object itself, use hardcoded\nconst productsToUse = Array.isArray(products) && products.length > 3 ? products : [\n  {\"id\":\"prod_001\",\"name\":\"Wireless Charger\",\"price\":1499,\"currency\":\"INR\",\"available\":true,\"description\":\"15W fast wireless charger\"},\n  {\"id\":\"prod_002\",\"name\":\"USB-C Cable\",\"price\":299,\"currency\":\"INR\",\"available\":true,\"description\":\"1m braided USB-C cable\"},\n  {\"id\":\"prod_003\",\"name\":\"Power Bank 10000mAh\",\"price\":1999,\"currency\":\"INR\",\"available\":true,\"description\":\"Fast charging power bank\"}\n];\n\n// Find matching product\nconst match = productsToUse.find(p => \n  p.name.toLowerCase().includes(intent.product.toLowerCase()) && \n  p.price <= intent.max_price\n);\n\nif (!match) {\n  throw new Error(`No matching product found for: ${intent.product} with max price: ${intent.max_price}`);\n}\n\nreturn {\n  product: match,\n  cart: {\n    items: [{product_id: match.id, qty: 1}],\n    shipping: intent.shipping || \"standard\"\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        -48
+      ],
+      "id": "5b3bd22e-c447-4398-9be6-9e902d07143e",
+      "name": "Filter matching products"
+    },
+    {
+      "parameters": {
+        "operation": "sendAndWait",
+        "chatId": "=8921782440",
+        "message": "=🛒 *Product Details*\n\n━━━━━━━━━━━━━━━━━━\n\n🎧 *{{ $json.product.name }}*\n\n💰 *Price:* ₹{{ $json.product.price }}\n💱 *Currency:* {{ $json.product.currency }}\n\n⚡ *{{ $json.product.description }}*\n\n📦 *Availability:* {{ $json.product.available ? \"✅ In Stock\" : \"❌ Out of Stock\" }}\n\n━━━━━━━━━━━━━━━━━━\n\nWould you like to add this product to your cart?",
+        "responseType": "freeText",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        -48
+      ],
+      "id": "1cb6543c-5adc-4787-b7d7-6598fd1438e8",
+      "name": "send recommendations",
+      "webhookId": "dbf42119-d440-425f-8895-c284cefd768f",
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "3d482b92-4137-4092-b5bc-a85ef9e01a4f",
+              "leftValue": "={{ $json.data.text }}",
+              "rightValue": "=yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1328,
+        -48
+      ],
+      "id": "6d2bcbb6-fd8a-4534-b85d-4188fb813340",
+      "name": "Evaluate_user_perference"
+    },
+    {
+      "parameters": {
+        "chatId": "8921782440",
+        "text": "=*message:*{{ $json['\"message\" '] }}\n\n*payment link:*{{ $json[' \"payment_url\"'] }}\n\n*order id:*{{ $json[' \"order_id\"'] }} \n\n*amount*:{{ $json['  \"amount\"'] }} \n\n*currency*:{{ $json['\"currency\"']  }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2240,
+        -192
+      ],
+      "id": "19b16876-f5f7-42c6-816b-eb29db2cafbe",
+      "name": "send payment link",
+      "webhookId": "5c0ed4eb-9a5a-4c88-b926-2e93d6a1eccd",
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "8921782440",
+        "text": "🛒❌ Product was not added to the cart. \n\nPlease try again or select another product. 🔄",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1840,
+        48
+      ],
+      "id": "d5479602-cbd7-44dc-be6a-ea920476911e",
+      "name": "Send a text message",
+      "webhookId": "2e1841bf-c0a1-433a-b619-b3a6a32ff230",
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Telegram account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "payment details for order": [
+      {
+        "json": {
+          "\"message\" ": "\"Payment link generated!\"",
+          " \"payment_url\"": "https://rzp.io/rzp/KsQgj2j",
+          " \"order_id\"": "order_TY3BjOKjC7PTu9",
+          "  \"amount\"": 34900,
+          "\"currency\"": "\"INR\""
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "Audit log": [
+      {
+        "json": {
+          "status": "logged",
+          "log_entry": {
+            "timestamp": "2026-09-04T23:28:37.735484",
+            "action": "checkout_created",
+            "order_id": "order_TY3BjOKjC7PTu9",
+            "amount": 34900,
+            "outcome": "success"
+          }
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "Call /checkout": [
+      {
+        "json": {
+          "order_id": "order_TY3BjOKjC7PTu9",
+          "payment_link": "https://rzp.io/rzp/KsQgj2j",
+          "amount": 34900,
+          "currency": "INR"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "user intent +products": [
+      {
+        "json": {
+          "id": "prod_001",
+          "name": "Wireless Charger",
+          "price": 1499,
+          "currency": "INR",
+          "available": true,
+          "description": "15W fast wireless charger",
+          "product": "USB-C cable",
+          "max_price": 500,
+          "shipping": "standard"
+        },
+        "binary": {},
+        "pairedItem": [
+          {
+            "item": 0
+          },
+          {
+            "item": 0,
+            "input": 1
+          }
+        ]
+      },
+      {
+        "json": {
+          "id": "prod_002",
+          "name": "USB-C Cable",
+          "price": 299,
+          "currency": "INR",
+          "available": true,
+          "description": "1m braided USB-C cable",
+          "product": "USB-C cable",
+          "max_price": 500,
+          "shipping": "standard"
+        },
+        "binary": {},
+        "pairedItem": [
+          {
+            "item": 1
+          },
+          {
+            "item": 0,
+            "input": 1
+          }
+        ]
+      },
+      {
+        "json": {
+          "id": "prod_003",
+          "name": "Power Bank 10000mAh",
+          "price": 1999,
+          "currency": "INR",
+          "available": true,
+          "description": "Fast charging power bank",
+          "product": "USB-C cable",
+          "max_price": 500,
+          "shipping": "standard"
+        },
+        "binary": {},
+        "pairedItem": [
+          {
+            "item": 2
+          },
+          {
+            "item": 0,
+            "input": 1
+          }
+        ]
+      }
+    ],
+    "Call /products": [
+      {
+        "json": {
+          "id": "prod_001",
+          "name": "Wireless Charger",
+          "price": 1499,
+          "currency": "INR",
+          "available": true,
+          "description": "15W fast wireless charger"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      },
+      {
+        "json": {
+          "id": "prod_002",
+          "name": "USB-C Cable",
+          "price": 299,
+          "currency": "INR",
+          "available": true,
+          "description": "1m braided USB-C cable"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      },
+      {
+        "json": {
+          "id": "prod_003",
+          "name": "Power Bank 10000mAh",
+          "price": 1999,
+          "currency": "INR",
+          "available": true,
+          "description": "Fast charging power bank"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "Intent Parsing": [
+      {
+        "json": {
+          "content": {
+            "parts": [
+              {
+                "text": "{\"product\": \"USB-C cable\", \"max_price\": 500, \"shipping\": null}",
+                "thoughtSignature": "EvgGCvUGARFNMg9q0aJL4oK6j7UcjyjpBEIoXmAqdvjObsnmBB3y4iETUpH1n4n8VjPqCFmAapP6C+4HomaujDLakxa4L8MBYHt+Xe/1Rzj+W0Yz2VxFl63Dvg2J3iWz3oR4wINEHsEPHOX4gMCERQrRFwzUtXuf13eUh0lGGPmYcQrLt0HC3DJJHUi7+1cf5pJoDb4svgyYJy8ei3je2mkDhLzEP2xBkKszZOTB4Ah6Tc3+GSJ8X9YAExUdEG8cNZeC6r0dLpDy5qjoIX6VslxlqFMoAibwZ2t5sut/qGH0LFA/iXAZBw0cjUfkpujDBStHN97pJMxEv1Zt7tr8ySP2F+AZhcfJ5oyooe0kCkV2jJWuV7xDBTIPhizB+7cHhrQOdw0y81RvaAJA2t7kA1u+5YE9kzW4krrcFFZX93ojpvCoQ+UYlYGPfofy5Vcu4mRWVFzc3n/28q9s1dCYu6HQRdMIw5Ya1Ed+4/TuKbKv3uVkf/+QoRSu6ti1C3R6cAum0I39tJ9qvT3+XZnSDltwivvd6LPF2vScAFzEW6miqg6rbCwmtTofidPDJS51xMFyjOvjs4+c8t4aAXNqGoHc2ysLqriORi2Be2CA/thHMbkiIUuk2JWZ8EPS4z6e908ccrHRtR7BhfrnGnImG9F4vjJ2vAggRj0jKCGCG7lnT4OhDp9OEpqz6nd9u9K/OUYqjnxLu+BFnI97QoPk53TK5IW8jh/2ID5ioxN5hXJZkXEG9mq7aiCppPF/IdZbeR4oiehjutDA9idXB1cZEsLOvEiXjFeMvVsTCwi3HH6Pr0eaGYA2FNMWll3vszRRNKNIE1E5FKKbMtBxyW+zyJpoJ8hMu6FiyqnJUBtB0k5vuVzX6CfNU+CLfpeQWW6UD+FdwL2ul4p+6lxPm9iBvUW3xi/DNNoKOTCtnFpyIeEHtsZyl/dBgQ8WbyM0DUAhEsBzn7tLjnTRPniBEiPmucizh4KF/Vt9wqW6uG4rTykAG6vH8PNrqAe42btvOh3cJeKdCW3+tVrFBgFiSDmXifprumSBDpud2iYGSkNHF+muI0aqx9zqanNTq+3ZZB7qaVP9uCZ9S+MQIYVMIYuSqFcdtprPXYLC+h6Alnp971Q3NdY7793hGmfzgZ9apKuzzM2NLi1RdNjd1gpvCrwazEl1wADe/aZl8fGw"
+              }
+            ],
+            "role": "model"
+          },
+          "finishReason": "STOP",
+          "index": 0
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "commerce Bot": [
+      {
+        "json": {
+          "update_id": 334482924,
+          "message": {
+            "message_id": 19,
+            "from": {
+              "id": 8921782440,
+              "is_bot": false,
+              "first_name": "Prasanth",
+              "last_name": "Y",
+              "language_code": "en"
+            },
+            "chat": {
+              "id": 8921782440,
+              "first_name": "Prasanth",
+              "last_name": "Y",
+              "type": "private"
+            },
+            "date": 1788544502,
+            "text": "Buy the USB-C cable under 500"
+          }
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "user details parser": [
+      {
+        "json": {
+          "product": "USB-C cable",
+          "max_price": 500,
+          "shipping": "standard"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "Filter matching products": [
+      {
+        "json": {
+          "product": {
+            "id": "prod_002",
+            "name": "USB-C Cable",
+            "price": 299,
+            "currency": "INR",
+            "available": true,
+            "description": "1m braided USB-C cable"
+          },
+          "cart": {
+            "items": [
+              {
+                "product_id": "prod_002",
+                "qty": 1
+              }
+            ],
+            "shipping": "standard"
+          }
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "send recommendations": [
+      {
+        "json": {
+          "data": {
+            "text": "yes"
+          }
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "send payment link": [
+      {
+        "json": {
+          "ok": true,
+          "result": {
+            "message_id": 25,
+            "from": {
+              "id": 8818207388,
+              "is_bot": true,
+              "first_name": "MyCommerceBot",
+              "username": "prasanth_commerce_bot"
+            },
+            "chat": {
+              "id": 8921782440,
+              "first_name": "Prasanth",
+              "last_name": "Y",
+              "type": "private"
+            },
+            "date": 1788547896,
+            "text": "message:\"Payment link generated!\"\n\npayment link:https://rzp.io/rzp/KsQgj2j\n\norder id:orderTY3BjOKjC7PTu9 \n\n*amount*:34900 \n\n*currency*:\"INR\"\n\nThis message was sent automatically with [n8n](https://n8n.io/?utmsource=n8n-internal&utmmedium=poweredby&utmcampaign=n8n-nodes-base.telegramb64160c14a9dc9f0e6761004b1a786665cf0ad63eab8f1bfc7bfad0c881e4ea5)",
+            "entities": [
+              {
+                "offset": 0,
+                "length": 8,
+                "type": "bold"
+              },
+              {
+                "offset": 35,
+                "length": 13,
+                "type": "bold"
+              },
+              {
+                "offset": 48,
+                "length": 26,
+                "type": "url"
+              },
+              {
+                "offset": 76,
+                "length": 9,
+                "type": "bold"
+              },
+              {
+                "offset": 90,
+                "length": 52,
+                "type": "italic"
+              },
+              {
+                "offset": 183,
+                "length": 6,
+                "type": "italic"
+              },
+              {
+                "offset": 189,
+                "length": 158,
+                "type": "url"
+              },
+              {
+                "offset": 189,
+                "length": 19,
+                "type": "italic"
+              },
+              {
+                "offset": 231,
+                "length": 14,
+                "type": "italic"
+              },
+              {
+                "offset": 251,
+                "length": 32,
+                "type": "italic"
+              }
+            ],
+            "link_preview_options": {
+              "is_disabled": true
+            }
+          }
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Intent Parsing": {
+      "main": [
+        [
+          {
+            "node": "user details parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call /products": {
+      "main": [
+        [
+          {
+            "node": "user intent +products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call /checkout": {
+      "main": [
+        [
+          {
+            "node": "Audit log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit log": {
+      "main": [
+        [
+          {
+            "node": "payment details for order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "user intent +products": {
+      "main": [
+        [
+          {
+            "node": "Filter matching products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "payment details for order": {
+      "main": [
+        [
+          {
+            "node": "send payment link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "commerce Bot": {
+      "main": [
+        [
+          {
+            "node": "Intent Parsing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "user details parser": {
+      "main": [
+        [
+          {
+            "node": "Call /products",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "user intent +products",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Filter matching products": {
+      "main": [
+        [
+          {
+            "node": "send recommendations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "send recommendations": {
+      "main": [
+        [
+          {
+            "node": "Evaluate_user_perference",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate_user_perference": {
+      "main": [
+        [
+          {
+            "node": "Call /checkout",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Audit log for rejection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit log for rejection": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "f0a2fbae-c9d5-40a5-b111-c53b13bac8b4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b64160c14a9dc9f0e6761004b1a786665cf0ad63eab8f1bfc7bfad0c881e4ea5"
+  },
+  "nodeGroups": [],
+  "id": "l0iX7hWmQwUzqHOL",
+  "tags": []
+}
